@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -65,6 +66,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -76,6 +78,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 private val HORA = DateTimeFormatter.ofPattern("HH:mm")
+private val DIA_HORA = DateTimeFormatter.ofPattern("dd/MM HH:mm")
+fun diaHora(iso: String?): String? = iso?.let { runCatching { OffsetDateTime.parse(it).atZoneSameInstant(ZoneId.systemDefault()).format(DIA_HORA) }.getOrNull() }
 fun hora(iso: String?): String? = iso?.let { runCatching { OffsetDateTime.parse(it).atZoneSameInstant(ZoneId.systemDefault()).format(HORA) }.getOrNull() }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -133,9 +137,34 @@ private fun PestanaParadas(m: Modelo) {
         return
     }
     LazyColumn(contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Sus viajes por hacer: el vigente primero; se puede abrir cualquiera
+        if (m.viajes.size > 1) item {
+            Text("Sus viajes", style = MaterialTheme.typography.titleMedium)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+                items(m.viajes, key = { it.viajeId }) { r ->
+                    val elegido = r.viajeId == v.id
+                    Column(
+                        Modifier.clip(RoundedCornerShape(12.dp))
+                            .background(if (elegido) Marca.brandAzul else Marca.fondoSuave)
+                            .clickable { m.elegirViaje(r.viajeId) }.padding(horizontal = 14.dp, vertical = 10.dp),
+                    ) {
+                        val color = if (elegido) Marca.textoSobreAzul else Marca.textoCuerpo
+                        Text(r.codigo, color = color, fontWeight = FontWeight.Bold)
+                        Text("${diaHora(r.desde) ?: ""} · ${r.paradasPendientes} por hacer", color = color, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
         item {
             Text("${v.vehiculo ?: ""}${v.remolque?.let { " + $it" } ?: ""} · ${v.paradas.count { it.hecha }} de ${v.paradas.size} paradas hechas",
                 color = Marca.textoCuerpoSecundario)
+            val previsto = listOfNotNull(diaHora(v.desde), hora(v.hasta)).joinToString(" – ")
+            if (previsto.isNotEmpty()) Text("Previsto: $previsto", color = Marca.textoCuerpoSecundario)
+            val pasado = v.hasta?.let { runCatching { OffsetDateTime.parse(it).isBefore(OffsetDateTime.now()) }.getOrNull() } == true
+            if (pasado && v.siguiente != null) {
+                Text("La hora prevista de este viaje ya ha pasado: si lo está haciendo, siga registrando sus paradas con normalidad.",
+                    color = Marca.estadoError, style = MaterialTheme.typography.bodySmall)
+            }
         }
         v.siguiente?.let { s ->
             item {

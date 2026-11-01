@@ -53,7 +53,8 @@ class Api(private val prefs: Preferencias) {
 
     suspend fun cerrarSesion() { llamar("DELETE", "/sesion") }
     suspend fun yo() = JSONObject(llamar("GET", "/yo"))
-    suspend fun viaje() = JSONObject(llamar("GET", "/viaje"))
+    suspend fun viaje(id: String? = null) = JSONObject(llamar("GET", if (id == null) "/viaje" else "/viaje?id=$id"))
+    suspend fun viajes() = JSONArray(llamar("GET", "/viajes"))
     suspend fun config() = JSONObject(llamar("GET", "/config"))
     suspend fun tiposIncidencia() = JSONArray(llamar("GET", "/tipos-incidencia"))
     suspend fun orden(id: String) = JSONObject(llamar("GET", "/ordenes/$id"))

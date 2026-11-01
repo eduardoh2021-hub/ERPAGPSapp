@@ -30,10 +30,14 @@ data class Parada(
     val esRecogida get() = tipo == "recogida"
 }
 
-data class Viaje(val codigo: String, val estado: String, val vehiculo: String?, val remolque: String?, val paradas: List<Parada>,
-                 val geojson: JSONObject?) {
+data class Viaje(val id: String, val codigo: String, val estado: String, val vehiculo: String?, val remolque: String?, val paradas: List<Parada>,
+                 val geojson: JSONObject?, val desde: String?, val hasta: String?) {
     val siguiente get() = paradas.firstOrNull { !it.hecha }
 }
+
+/** Un viaje de la lista de viajes por hacer. */
+data class ResumenViaje(val viajeId: String, val codigo: String, val estado: String, val desde: String?, val hasta: String?,
+                        val vehiculo: String?, val paradasPendientes: Int, val vigente: Boolean)
 
 sealed interface Pantalla {
     data object Acceso : Pantalla
@@ -50,6 +54,10 @@ class Modelo(aplicacion: Application) : AndroidViewModel(aplicacion) {
     val pila = mutableStateListOf<Pantalla>(if (prefs.token == null) Pantalla.Acceso else Pantalla.Principal)
     var pestana by mutableStateOf(0)
     var viaje by mutableStateOf<Viaje?>(null)
+    /** Sus viajes por hacer (GET /viajes), el vigente primero. */
+    var viajes by mutableStateOf<List<ResumenViaje>>(emptyList())
+    /** Viaje elegido en la app; null = el vigente que decide el ERP. */
+    var viajeElegido by mutableStateOf<String?>(null)
     var cargando by mutableStateOf(false)
     var mensaje by mutableStateOf<String?>(null)
     var estiloMapa by mutableStateOf<String?>(null)
@@ -117,11 +125,17 @@ class Modelo(aplicacion: Application) : AndroidViewModel(aplicacion) {
                 estiloMapa = c.texto("mapa_estilo_url")?.let { if (it.startsWith("/")) prefs.urlServidor + it else it }
             }
             if (tiposIncidencia.isEmpty()) tiposIncidencia = app.api.tiposIncidencia().objetos().map { it.getString("id") to it.getString("descripcion") }
-            val v = app.api.viaje()
+            viajes = app.api.viajes().objetos().map {
+                ResumenViaje(it.getString("viaje_id"), it.getString("viaje"), it.getString("viaje_estado"), it.texto("desde"), it.texto("hasta"),
+                    it.texto("matricula"), it.optInt("tramos_pendientes"), it.optBoolean("vigente"))
+            }
+            // Si el viaje elegido ya no está por hacer (se cerró), vuelve al vigente
+            if (viajeElegido != null && viajes.none { it.viajeId == viajeElegido }) viajeElegido = null
+            val v = app.api.viaje(viajeElegido)
             viaje = v.objeto("viaje")?.let { vj ->
                 val a = v.objeto("asignacion")
-                Viaje(vj.getString("codigo"), vj.getString("estado"), a?.texto("vehiculo"), a?.texto("remolque"),
-                    v.getJSONArray("paradas").objetos().map(::parada), v.objeto("geojson"))
+                Viaje(vj.getString("id"), vj.getString("codigo"), vj.getString("estado"), a?.texto("vehiculo"), a?.texto("remolque"),
+                    v.getJSONArray("paradas").objetos().map(::parada), v.objeto("geojson"), a?.texto("desde"), a?.texto("hasta"))
             }
             val yo = app.api.yo()
             vehiculoJornada = yo.objeto("asignacion")?.texto("vehiculo") ?: yo.objeto("vehiculo_declarado")?.texto("matricula")
@@ -142,6 +156,11 @@ class Modelo(aplicacion: Application) : AndroidViewModel(aplicacion) {
             horario = d.texto("horario"), instrucciones = d.texto("instrucciones"), eta = p.texto("eta") ?: p.texto("llegada_prevista"),
             retrasoMin = p.numero("retraso_min")?.toInt(),
         )
+    }
+
+    fun elegirViaje(id: String) {
+        viajeElegido = viajes.firstOrNull { it.viajeId == id && !it.vigente }?.viajeId
+        cargar()
     }
 
     fun declararVehiculo(matricula: String) = viewModelScope.launch {
