@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema de arranque: el resto lo pinta Compose con los colores de la marca (ui/Tema.kt) -->
+    <style name="Tema.Conductor" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/marca_fondo_principal</item>
+        <item name="android:statusBarColor">@color/marca_brand_azul</item>
+        <item name="android:navigationBarColor">@color/marca_fondo_principal</item>
+        <item name="android:colorAccent">@color/marca_brand_rojo</item>
+    </style>
+</resources>

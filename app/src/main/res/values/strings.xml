@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Action Truck Conductor</string>
+    <string name="canal_gps">Seguimiento GPS</string>
+    <string name="canal_gps_desc">Aviso fijo mientras la jornada está iniciada y se envía la posición al ERP</string>
+</resources>
