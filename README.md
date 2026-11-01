@@ -29,6 +29,18 @@ $env:JAVA_HOME = "C:\Android\jdk17"
 - **Firma**: `keystore.properties` (fuera de git) apunta al almacén de claves `C:\Android\firma\actiontruck-conductor.jks`. **Guarde una copia de los dos ficheros en un sitio seguro**: sin esa clave no se pueden publicar actualizaciones que se instalen encima de la versión que ya tienen los móviles. Sin `keystore.properties`, `assembleRelease` sale sin firmar y solo sirve `assembleDebug`.
 - Los colores se generan al compilar desde `packages/ui/tokens.json` (tareas `generarMarcaKotlin` y `generarMarcaRes`): ni la interfaz ni el icono llevan colores escritos a mano. La tipografía es Yantramanav (licencia OFL) en `app/src/main/res/font`.
 
+## Dar de alta a un conductor en la app
+
+Los usuarios de la app no se crean en CONFIGURACIÓN › Usuarios (allí solo están los de la web): se gestionan desde la ficha del conductor, en **GESTIÓN › Conductores › (conductor) › App y dispositivos › Acceso a la app**. Hace falta permiso de escritura en Flota (Administración, Tráfico y Gestión).
+
+- **Dar acceso a la app**: se propone un usuario (inicial del nombre y primer apellido, p. ej. `fjimenez`) y se pone una contraseña inicial (8 caracteres como mínimo, con letras y números). Se crea un usuario con perfil *conductor*, enlazado a esa ficha, que entra en la app pero no en la web. Comuníquele usuario y contraseña: el ERP no guarda las contraseñas y no se pueden consultar después.
+- **Cambiar contraseña**: si la olvida. Cierra su sesión en el móvil y tendrá que entrar con la nueva.
+- **Desbloquear**: tras 5 intentos fallidos la cuenta se bloquea 15 minutos; aquí se desbloquea al momento.
+- **Quitar acceso**: no se borra nada (baja lógica); su sesión se cierra y no puede volver a entrar. Sus posiciones, firmas y registros se conservan. «Volver a dar acceso» reactiva el mismo usuario con una contraseña nueva.
+- **Dispositivos**: el móvil se da de alta solo la primera vez que el conductor entra. Si lo pierde o lo cambia, revóquelo en la misma pestaña.
+
+Un conductor dado de baja en Flota no puede entrar en la app aunque tenga usuario.
+
 ## Instalar en los móviles
 
 1. Copie el APK al móvil (correo, WhatsApp, USB, enlace) y ábralo. Android pedirá permitir «instalar aplicaciones de origen desconocido» para esa app la primera vez.
