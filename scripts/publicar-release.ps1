@@ -26,7 +26,7 @@ if ($ultima) {
 if (-not $env:JAVA_HOME) { $env:JAVA_HOME = "C:\Android\jdk17" }
 $parametros = @("assembleRelease", "-PversionName=$Version", "--console=plain")
 if ($ErpUrl) { $parametros += "-PerpUrl=$ErpUrl" }
-& .\gradlew.bat @args
+& .\gradlew.bat @parametros
 if ($LASTEXITCODE -ne 0) { throw "La compilación ha fallado" }
 
 # Nombres con la versión y la arquitectura (la app elige el de su arquitectura o el universal)
