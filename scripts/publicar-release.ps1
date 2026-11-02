@@ -7,7 +7,9 @@ param(
   [string]$Notas = "",
   [string]$ErpUrl = ""
 )
-$ErrorActionPreference = "Stop"
+# "Continue" y no "Stop": git y gradle escriben su progreso en stderr y Windows PowerShell 5.1 lo tomaría por error.
+# Cada orden se comprueba con $LASTEXITCODE.
+$ErrorActionPreference = "Continue"
 Set-Location (Split-Path -Parent $PSScriptRoot)
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') { throw "Versión no válida: '$Version' (se espera X.Y.Z, p. ej. 1.2.0)" }
