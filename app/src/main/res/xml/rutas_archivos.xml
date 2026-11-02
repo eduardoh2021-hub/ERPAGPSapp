@@ -2,4 +2,5 @@
 <paths>
     <cache-path name="fotos" path="fotos/" />
     <cache-path name="documentos" path="documentos/" />
+    <cache-path name="actualizaciones" path="actualizaciones/" />
 </paths>

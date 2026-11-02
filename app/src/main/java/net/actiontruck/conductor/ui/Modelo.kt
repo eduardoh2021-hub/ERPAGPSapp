@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import net.actiontruck.conductor.AppConductor
 import net.actiontruck.conductor.BuildConfig
+import net.actiontruck.conductor.datos.Actualizador
 import net.actiontruck.conductor.datos.ErrorApi
 import net.actiontruck.conductor.datos.numero
 import net.actiontruck.conductor.datos.objeto
@@ -39,6 +40,16 @@ data class Viaje(val id: String, val codigo: String, val estado: String, val veh
 data class ResumenViaje(val viajeId: String, val codigo: String, val estado: String, val desde: String?, val hasta: String?,
                         val vehiculo: String?, val paradasPendientes: Int, val vigente: Boolean)
 
+/** Estado de «Buscar actualizaciones». */
+sealed interface EstadoActualizacion {
+    data object SinBuscar : EstadoActualizacion
+    data object Buscando : EstadoActualizacion
+    data object AlDia : EstadoActualizacion
+    data class Disponible(val version: Actualizador.Version) : EstadoActualizacion
+    data class Descargando(val version: Actualizador.Version, val progreso: Float) : EstadoActualizacion
+    data class Error(val mensaje: String) : EstadoActualizacion
+}
+
 sealed interface Pantalla {
     data object Acceso : Pantalla
     data object Principal : Pantalla
@@ -63,6 +74,14 @@ class Modelo(aplicacion: Application) : AndroidViewModel(aplicacion) {
     var estiloMapa by mutableStateOf<String?>(null)
     var tiposIncidencia by mutableStateOf<List<Pair<String, String>>>(emptyList())
     var vehiculoJornada by mutableStateOf<String?>(null)
+
+    val actualizador = Actualizador(aplicacion)
+    var actualizacion by mutableStateOf<EstadoActualizacion>(EstadoActualizacion.SinBuscar)
+
+    init {
+        // Al abrir la app se mira en silencio si hay versión nueva; si la hay, se avisa
+        buscarActualizaciones(silencioso = true)
+    }
 
     val actual get() = pila.last()
     fun ir(p: Pantalla) { pila.add(p) }
@@ -201,6 +220,38 @@ class Modelo(aplicacion: Application) : AndroidViewModel(aplicacion) {
     fun descartarEvento(id: String) {
         app.cola.borrarEvento(id)
         app.sincronizador.refrescarContadores()
+    }
+
+    // --- Actualizaciones de la app (releases del repositorio en GitHub) ---------------------------
+    fun buscarActualizaciones(silencioso: Boolean = false) = viewModelScope.launch {
+        if (actualizacion is EstadoActualizacion.Descargando) return@launch
+        if (!silencioso) actualizacion = EstadoActualizacion.Buscando
+        actualizacion = try {
+            actualizador.buscar()?.let { v ->
+                if (silencioso && prefs.token != null) mensaje = "Hay una versión nueva de la app (${v.etiqueta}): Jornada › Buscar actualizaciones"
+                EstadoActualizacion.Disponible(v)
+            } ?: EstadoActualizacion.AlDia
+        } catch (e: Exception) {
+            if (silencioso) EstadoActualizacion.SinBuscar
+            else EstadoActualizacion.Error(if (e is IOException) "No se pudo consultar GitHub: ${e.message ?: "sin conexión"}" else e.message ?: e.toString())
+        }
+    }
+
+    fun instalarActualizacion() = viewModelScope.launch {
+        val v = (actualizacion as? EstadoActualizacion.Disponible)?.version ?: return@launch
+        if (!actualizador.puedeInstalar()) {
+            mensaje = "Permita a esta app instalar aplicaciones y vuelva a pulsar «Descargar e instalar»"
+            actualizador.abrirPermisoInstalar()
+            return@launch
+        }
+        actualizacion = EstadoActualizacion.Descargando(v, 0f)
+        try {
+            val apk = actualizador.descargar(v) { p -> actualizacion = EstadoActualizacion.Descargando(v, p) }
+            actualizacion = EstadoActualizacion.Disponible(v)
+            actualizador.instalar(apk)
+        } catch (e: Exception) {
+            actualizacion = EstadoActualizacion.Error("No se pudo descargar ${v.etiqueta}: ${e.message}")
+        }
     }
 
     fun sincronizar() = viewModelScope.launch {

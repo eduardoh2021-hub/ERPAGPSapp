@@ -62,5 +62,7 @@ fun PantallaAcceso(m: Modelo) {
             if (m.cargando) CircularProgressIndicator(Modifier.height(24.dp), color = Marca.textoSobreRojo) else Text("Entrar")
         }
         Text("Versión ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall, color = Marca.textoCuerpoSecundario)
+        // También antes de entrar: si una versión no deja iniciar sesión, se puede actualizar desde aquí
+        TarjetaActualizaciones(m)
     }
 }

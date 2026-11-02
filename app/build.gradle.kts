@@ -12,6 +12,15 @@ val firma = Properties().apply {
     val f = rootProject.file("keystore.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
+// URL del ERP que propone la pantalla de acceso: -PerpUrl=… o erpUrl= en local.properties (fuera de git: el repositorio es público)
+val local = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val erpUrl = providers.gradleProperty("erpUrl").orNull ?: local.getProperty("erpUrl") ?: ""
+// Versión: la fija scripts/publicar-release (-PversionName=1.2.0); el código sale de ella (1.2.0 → 10200)
+val nombreVersion = providers.gradleProperty("versionName").getOrElse("1.1.0")
+val codigoVersion = nombreVersion.split('.').map { it.toInt() }.let { (a, b, c) -> a * 10000 + b * 100 + c }
 
 android {
     namespace = "net.actiontruck.conductor"
@@ -21,9 +30,11 @@ android {
         applicationId = "net.actiontruck.conductor"
         minSdk = 26
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.1"
-        buildConfigField("String", "ERP_URL", "\"${providers.gradleProperty("erpUrl").getOrElse("")}\"")
+        versionCode = codigoVersion
+        versionName = nombreVersion
+        buildConfigField("String", "ERP_URL", "\"$erpUrl\"")
+        // «Buscar actualizaciones»: releases de este repositorio en GitHub (público)
+        buildConfigField("String", "REPO_ACTUALIZACIONES", "\"${providers.gradleProperty("repoActualizaciones").getOrElse("eduardoh2021-hub/ERPAGPSapp")}\"")
     }
 
     signingConfigs {
@@ -64,7 +75,7 @@ android {
 }
 
 // -----------------------------------------------------------------------------
-//  Marca: los colores salen de packages/ui/tokens.json (regla del proyecto: nada de colores escritos a mano).
+//  Marca: los colores salen de marca/tokens.json, copia de packages/ui/tokens.json del ERP (nada de colores escritos a mano).
 //  Se generan un objeto Kotlin (Marca) para Compose y un colors.xml para el icono y el tema de arranque.
 // -----------------------------------------------------------------------------
 abstract class GenerarMarca : DefaultTask() {
@@ -95,7 +106,7 @@ abstract class GenerarMarca : DefaultTask() {
             val f = File(dir, "net/actiontruck/conductor/marca/Marca.kt")
             f.parentFile.mkdirs()
             f.writeText(buildString {
-                appendLine("// GENERADO desde packages/ui/tokens.json por la tarea generarMarcaKotlin. No editar.")
+                appendLine("// GENERADO desde marca/tokens.json por la tarea generarMarcaKotlin. No editar.")
                 appendLine("package net.actiontruck.conductor.marca\n")
                 appendLine("import androidx.compose.ui.graphics.Color\n")
                 appendLine("object Marca {")
@@ -107,7 +118,7 @@ abstract class GenerarMarca : DefaultTask() {
             f.parentFile.mkdirs()
             f.writeText(buildString {
                 appendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>")
-                appendLine("<!-- GENERADO desde packages/ui/tokens.json por la tarea generarMarcaRes. No editar. -->")
+                appendLine("<!-- GENERADO desde marca/tokens.json por la tarea generarMarcaRes. No editar. -->")
                 appendLine("<resources>")
                 colores.forEach { (k, v) -> appendLine("    <color name=\"marca_${k.replace('.', '_')}\">#$v</color>") }
                 appendLine("</resources>")
@@ -116,7 +127,7 @@ abstract class GenerarMarca : DefaultTask() {
     }
 }
 
-val tokensMarca = rootProject.layout.projectDirectory.file("../../packages/ui/tokens.json")
+val tokensMarca = rootProject.layout.projectDirectory.file("marca/tokens.json")
 val generarMarcaKotlin = tasks.register<GenerarMarca>("generarMarcaKotlin") {
     tokens.set(tokensMarca); formato.set("kotlin"); salida.set(layout.buildDirectory.dir("generated/marca/kotlin"))
 }

@@ -305,6 +305,8 @@ private fun PestanaJornada(m: Modelo) {
             }
         }
 
+        TarjetaActualizaciones(m)
+
         HorizontalDivider(color = Marca.lineaBorde)
         Text("Servidor: ${m.prefs.urlServidor}", style = MaterialTheme.typography.bodySmall, color = Marca.textoCuerpoSecundario)
         OutlinedButton(onClick = { m.salir() }, modifier = Modifier.fillMaxWidth()) {
