@@ -30,6 +30,10 @@ $env:JAVA_HOME = "C:\Android\jdk17"
 - **Firma**: `keystore.properties` (fuera de git) apunta al almacén de claves `C:\Android\firma\actiontruck-conductor.jks`. **Guarde una copia de los dos ficheros en un sitio seguro**: sin esa clave no se pueden publicar actualizaciones que se instalen encima de la versión que ya tienen los móviles. Sin `keystore.properties`, `assembleRelease` sale sin firmar y solo sirve `assembleDebug`.
 - Los colores se generan al compilar desde `marca/tokens.json`, copia de `packages/ui/tokens.json` del ERP: si cambia la marca allí, copie el fichero aquí (tareas `generarMarcaKotlin` y `generarMarcaRes`): ni la interfaz ni el icono llevan colores escritos a mano. La tipografía es Yantramanav (licencia OFL) en `app/src/main/res/font`.
 
+### Compilación en GitHub
+
+Cada PR y cada push a `main` se compilan solos en GitHub Actions (`.github/workflows/compilar.yml`): si la app no compila, la PR sale en rojo. El **APK de pruebas** (debug) queda 14 días en la ejecución (pestaña *Actions* › la ejecución › *Artifacts*). Se instala **junto** a la app de los conductores, sin sustituirla (identificador `net.actiontruck.conductor.pruebas`, versión `…-pruebas`). Las releases firmadas no se compilan en GitHub: la clave de firma no sale de este equipo.
+
 ## Publicar una versión nueva
 
 ```powershell

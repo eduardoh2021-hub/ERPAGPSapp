@@ -53,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -102,6 +103,7 @@ fun PantallaEvento(m: Modelo, p: Pantalla.Evento) {
     var tipoIncidenciaEvento by remember { mutableStateOf("incidencia") }
     val trazos = remember { mutableStateListOf<List<Offset>>() }
     var trazoActual by remember { mutableStateOf<List<Offset>>(emptyList()) }
+    var firmando by remember { mutableStateOf(false) }
     var tamanoFirma by remember { mutableStateOf(IntSize.Zero) }
     val fotos = remember { mutableStateListOf<Bitmap>() }
     var fotoPendiente by remember { mutableStateOf<Uri?>(null) }
@@ -141,7 +143,7 @@ fun PantallaEvento(m: Modelo, p: Pantalla.Evento) {
             return@Scaffold
         }
         // Mientras se firma no se desplaza la pantalla: el lienzo consume los gestos
-        Column(Modifier.padding(relleno).fillMaxSize().imePadding().verticalScroll(rememberScrollState(), enabled = trazoActual.isEmpty()).padding(16.dp),
+        Column(Modifier.padding(relleno).fillMaxSize().imePadding().verticalScroll(rememberScrollState(), enabled = !firmando).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (entrega) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -182,25 +184,43 @@ fun PantallaEvento(m: Modelo, p: Pantalla.Evento) {
                     TextButton(onClick = { trazos.clear() }) { Text("Borrar") }
                 }
                 LienzoCompose(
-                    Modifier.fillMaxWidth().height(200.dp).background(Marca.fondoPrincipal, RoundedCornerShape(8.dp))
+                    // clip: nada de la firma se pinta fuera del recuadro
+                    Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(8.dp)).background(Marca.fondoPrincipal, RoundedCornerShape(8.dp))
                         .border(2.dp, Marca.lineaBorde, RoundedCornerShape(8.dp))
                         .onSizeChanged { tamanoFirma = it }
                         .pointerInput(Unit) {
-                            // El trazo empieza al apoyar el dedo y se consume todo: la página no se desplaza mientras se firma
+                            // El trazo empieza al apoyar el dedo y se consume todo: la página no se desplaza mientras se firma.
+                            // Solo se guardan los puntos dentro del recuadro: si el dedo sale, el trazo se corta en el borde y,
+                            // si vuelve a entrar, empieza otro (no se dibujan líneas por fuera ni a lo largo del borde).
                             awaitEachGesture {
+                                val ancho = size.width.toFloat(); val alto = size.height.toFloat()
+                                fun dentro(p: Offset) = p.x in MARGEN_FIRMA..(ancho - MARGEN_FIRMA) && p.y in MARGEN_FIRMA..(alto - MARGEN_FIRMA)
+                                fun alBorde(p: Offset) = Offset(p.x.coerceIn(MARGEN_FIRMA, ancho - MARGEN_FIRMA), p.y.coerceIn(MARGEN_FIRMA, alto - MARGEN_FIRMA))
                                 val inicio = awaitFirstDown()
                                 inicio.consume()
                                 foco.clearFocus()   // se cierra el teclado: no tapa el recuadro de la firma
-                                trazoActual = listOf(inicio.position)
-                                while (true) {
-                                    val ev = awaitPointerEvent()
-                                    val dedo = ev.changes.firstOrNull { it.id == inicio.id } ?: break
-                                    if (!dedo.pressed) break
-                                    trazoActual = trazoActual + dedo.position
-                                    dedo.consume()
+                                firmando = true
+                                try {
+                                    trazoActual = if (dentro(inicio.position)) listOf(inicio.position) else emptyList()
+                                    while (true) {
+                                        val ev = awaitPointerEvent()
+                                        val dedo = ev.changes.firstOrNull { it.id == inicio.id } ?: break
+                                        if (!dedo.pressed) break
+                                        dedo.consume()
+                                        val punto = dedo.position
+                                        if (dentro(punto)) {
+                                            trazoActual = trazoActual + punto
+                                        } else if (trazoActual.isNotEmpty()) {
+                                            val cerrado = trazoActual + alBorde(punto)
+                                            if (cerrado.size > 1) trazos.add(cerrado)
+                                            trazoActual = emptyList()
+                                        }
+                                    }
+                                    if (trazoActual.size > 1) trazos.add(trazoActual)
+                                } finally {
+                                    trazoActual = emptyList()
+                                    firmando = false
                                 }
-                                if (trazoActual.size > 1) trazos.add(trazoActual)
-                                trazoActual = emptyList()
                             }
                         },
                 ) {
@@ -247,6 +267,9 @@ fun PantallaEvento(m: Modelo, p: Pantalla.Evento) {
         }
     }
 }
+
+/** Distancia mínima de la firma al borde del recuadro (la mitad del grosor del trazo): ningún punto se sale. */
+private const val MARGEN_FIRMA = 3f
 
 /** La firma dibujada, recortada a lo que ocupa, en PNG transparente y base64. */
 private fun firmaPng(trazos: List<List<Offset>>, tam: IntSize, color: Int): String {
