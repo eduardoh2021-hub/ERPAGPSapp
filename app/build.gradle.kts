@@ -47,6 +47,11 @@ android {
     }
 
     buildTypes {
+        // El APK de pruebas se instala junto a la app de los conductores, sin sustituirla (otro identificador)
+        debug {
+            applicationIdSuffix = ".pruebas"
+            versionNameSuffix = "-pruebas"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true

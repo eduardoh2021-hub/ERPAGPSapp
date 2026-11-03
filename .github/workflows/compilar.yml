@@ -1,0 +1,43 @@
+# Compila la app en cada PR y en cada push a main, para saber que compila antes de publicar.
+# Solo el APK de pruebas (debug, firmado con la clave de depuración de GitHub): las releases firmadas se siguen
+# publicando desde el equipo con scripts/publicar-release.ps1, porque la clave de firma no sale de allí.
+# El APK queda 14 días en la ejecución (Actions › ejecución › Artifacts) para instalarlo en un móvil de pruebas.
+name: Compilar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compilar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compilar el APK de pruebas
+        run: bash ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Guardar el APK de pruebas
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-pruebas-${{ github.event.pull_request.number && format('pr{0}', github.event.pull_request.number) || github.ref_name }}
+          path: app/build/outputs/apk/debug/*universal*.apk
+          if-no-files-found: error
+          retention-days: 14
