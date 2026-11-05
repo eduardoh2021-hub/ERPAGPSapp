@@ -14,6 +14,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 /**
@@ -23,7 +24,9 @@ import java.util.concurrent.TimeUnit
  * la versión instalada, así que un APK ajeno no puede sustituir a la app.
  */
 class Actualizador(private val contexto: Context) {
-    data class Version(val etiqueta: String, val nombre: String, val notas: String, val publicada: String?, val url: String, val fichero: String, val bytes: Long)
+    /** [sha256]: huella del APK que publica GitHub en la release («digest»), en hexadecimal; null en releases antiguas. */
+    data class Version(val etiqueta: String, val nombre: String, val notas: String, val publicada: String?, val url: String, val fichero: String, val bytes: Long,
+                       val sha256: String? = null)
 
     private val http = OkHttpClient.Builder().connectTimeout(15, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build()
 
@@ -43,14 +46,22 @@ class Actualizador(private val contexto: Context) {
         val elegido = Build.SUPPORTED_ABIS.firstNotNullOfOrNull { abi -> apks.firstOrNull { it.getString("name").contains(abi) } }
             ?: apks.firstOrNull { it.getString("name").contains("universal") }
             ?: throw IOException("La versión $etiqueta no trae ningún APK para este móvil")
+        // Solo APK de las releases de este repositorio en github.com, por HTTPS
+        val url = elegido.getString("browser_download_url")
+        if (!url.startsWith("https://github.com/${BuildConfig.REPO_ACTUALIZACIONES}/releases/download/", ignoreCase = true)) {
+            throw IOException("La versión $etiqueta apunta a una descarga que no es de este repositorio: no se instala")
+        }
+        val sha256 = elegido.texto("digest")?.takeIf { it.startsWith("sha256:") }?.removePrefix("sha256:")?.lowercase()
         Version(etiqueta, r.texto("name") ?: etiqueta, r.texto("body") ?: "", r.texto("published_at"),
-            elegido.getString("browser_download_url"), elegido.getString("name"), elegido.optLong("size"))
+            url, elegido.getString("name"), elegido.optLong("size"), sha256)
     }
 
     /** Descarga el APK a la caché, informando del progreso (0..1). */
     suspend fun descargar(v: Version, progreso: (Float) -> Unit): File = withContext(Dispatchers.IO) {
         val dir = File(contexto.cacheDir, "actualizaciones").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
-        val destino = File(dir, v.fichero)
+        // El nombre del fichero llega de GitHub: solo se usa su última parte y caracteres seguros
+        val destino = File(dir, v.fichero.substringAfterLast('/').replace(Regex("[^A-Za-z0-9._-]"), "_"))
+        val huella = MessageDigest.getInstance("SHA-256")
         http.newCall(Request.Builder().url(v.url).header("User-Agent", "ActionTruckConductor").build()).execute().use { resp ->
             if (!resp.isSuccessful) throw IOException("No se pudo descargar (${resp.code})")
             val cuerpo = resp.body!!
@@ -63,11 +74,18 @@ class Actualizador(private val contexto: Context) {
                         val n = entrada.read(buf)
                         if (n < 0) break
                         salida.write(buf, 0, n)
+                        huella.update(buf, 0, n)
                         leidos += n
                         if (total > 0) progreso((leidos.toFloat() / total).coerceIn(0f, 1f))
                     }
                 }
             }
+        }
+        // Integridad: el APK descargado tiene que coincidir con la huella que publica GitHub para esa release
+        val calculada = huella.digest().joinToString("") { "%02x".format(it) }
+        if (v.sha256 != null && v.sha256 != calculada) {
+            destino.delete()
+            throw IOException("El APK descargado no coincide con su huella SHA-256: no se instala. Vuelva a intentarlo")
         }
         destino
     }

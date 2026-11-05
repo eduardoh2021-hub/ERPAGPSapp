@@ -33,12 +33,15 @@
     <application
         android:name=".AppConductor"
         android:allowBackup="false"
+        android:dataExtractionRules="@xml/reglas_extraccion_datos"
+        android:fullBackupContent="@xml/reglas_copia"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="false"
         android:theme="@style/Tema.Conductor"
-        android:usesCleartextTraffic="true">
+        android:networkSecurityConfig="@xml/seguridad_red"
+        android:usesCleartextTraffic="false">
 
         <activity
             android:name=".ui.MainActivity"

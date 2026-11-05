@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SOLO el APK de pruebas (debug): admite http:// para probar contra un ERP de la red local o del emulador
+     (10.0.2.2). La versión que llevan los conductores usa src/main/res/xml/seguridad_red.xml: solo HTTPS. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

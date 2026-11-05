@@ -1,0 +1,4 @@
+# Configuración de CodeQL (workflow «Seguridad»): lo generado al compilar no es código de la app.
+name: ERPAGPSapp
+paths-ignore:
+  - '**/build/**'
