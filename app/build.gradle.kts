@@ -19,7 +19,7 @@ val local = Properties().apply {
 }
 val erpUrl = providers.gradleProperty("erpUrl").orNull ?: local.getProperty("erpUrl") ?: ""
 // Versión: la fija scripts/publicar-release (-PversionName=1.2.0); el código sale de ella (1.2.0 → 10200)
-val nombreVersion = providers.gradleProperty("versionName").getOrElse("1.1.0")
+val nombreVersion = providers.gradleProperty("versionName").getOrElse("1.2.0")
 val codigoVersion = nombreVersion.split('.').map { it.toInt() }.let { (a, b, c) -> a * 10000 + b * 100 + c }
 
 android {

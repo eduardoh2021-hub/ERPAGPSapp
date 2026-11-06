@@ -105,6 +105,11 @@ class Modelo(aplicacion: Application) : AndroidViewModel(aplicacion) {
 
     // --- Sesión -----------------------------------------------------------------------------
     fun entrar(url: String, usuario: String, contrasena: String, hecho: () -> Unit) = viewModelScope.launch {
+        // Solo HTTPS: la contraseña y el token no pueden viajar en claro (el APK de pruebas admite http:// para un ERP local)
+        if (!BuildConfig.DEBUG && !url.trim().startsWith("https://", ignoreCase = true)) {
+            mensaje = "El servidor tiene que empezar por https:// (pídale a tráfico la dirección segura del ERP)"
+            return@launch
+        }
         cargando = true; mensaje = null
         try {
             prefs.urlServidor = url

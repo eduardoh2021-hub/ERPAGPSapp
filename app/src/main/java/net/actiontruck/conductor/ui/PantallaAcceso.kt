@@ -52,7 +52,7 @@ fun PantallaAcceso(m: Modelo) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done))
         OutlinedTextField(url, { url = it }, label = { Text("Servidor del ERP") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            supportingText = { Text("Lo indica tráfico. Ejemplo: https://erp.actiontruck.net") })
+            supportingText = { Text("Lo indica tráfico. Siempre https://, por ejemplo https://erp.actiontruck.net") })
         m.mensaje?.let { Text(it, color = Marca.estadoError) }
         Button(
             onClick = { m.entrar(url, usuario, contrasena) { contrasena = "" } },

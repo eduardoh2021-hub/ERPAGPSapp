@@ -13,6 +13,22 @@ APK que llevan los conductores de Action Truck. Habla solo con la API móvil del
 - **Buscar actualizaciones** (pestaña Jornada, y también en la pantalla de acceso): consulta la última release de este repositorio, la compara con la versión instalada, descarga el APK de la arquitectura del móvil y abre el instalador de Android. Al abrir la app se comprueba en silencio y, si hay versión nueva, se avisa. La primera vez Android pide permitir que la app «instale aplicaciones desconocidas». Solo se instala si el APK va firmado con la misma clave que la app instalada.
 - **Registrar**: llegada a carga, cargada (firma opcional), llegada a descarga, **entrega con firma en pantalla, nombre y DNI de quien recibe y fotos** (POD), incidencia / ausente / rechazada con su tipo, y notas. Cada registro se guarda primero en el móvil con su UUID y se envía enseguida; sin cobertura sale solo después. La firma acaba en el albarán y en la trazabilidad de la orden.
 
+## Seguridad
+
+Las reglas obligatorias en cada cambio están en `CLAUDE.md` y en `docs/seguridad.md` del ERP. Cómo avisar de un fallo: `SECURITY.md`. Lo aplicado en la app:
+
+- **Solo HTTPS** (`res/xml/seguridad_red.xml`): no hay tráfico en claro y solo se confía en las autoridades de certificación del sistema. La pantalla de acceso rechaza servidores `http://`. El APK de pruebas tiene su propia configuración (`src/debug`), que admite `http://` para un ERP local.
+- **Credenciales**: la contraseña no se guarda nunca. El token se guarda cifrado (`EncryptedSharedPreferences` con una clave del almacén de Android). La app y sus datos quedan fuera de la copia en la nube y de la transferencia a otro móvil (`allowBackup="false"`, `reglas_extraccion_datos.xml`).
+- **Actualizaciones**: solo se aceptan APK de las releases de este repositorio en `github.com`. Antes de abrir el instalador se comprueba su SHA-256 con el que publica GitHub, y Android exige además la misma firma que la app instalada.
+- **Repositorio público**: no hay secretos. La clave de firma y la URL del ERP se quedan en el equipo que compila (`keystore.properties` y `local.properties`, fuera de git).
+- **Comprobaciones en cada PR** (`.github/workflows/seguridad.yml`): gitleaks (secretos en todo el historial) y CodeQL (Kotlin y workflows; falla con gravedad ≥ 7), además de `Compilar`. Dependabot (`.github/dependabot.yml`) revisa cada semana las dependencias de Gradle y las acciones. Para que bloqueen la fusión, se marcan como obligatorias en *Settings › Rules* (ver `docs/seguridad.md` §5 del ERP).
+
+### Novedades de la 1.2.0 (seguridad)
+
+- Conexión con el ERP solo por HTTPS: **antes de instalarla, el ERP tiene que estar publicado por HTTPS** (con Caddy, v1.6 del ERP). Si un móvil tenía guardado `http://…`, la app pide la dirección `https://`.
+- Comprobación del SHA-256 del APK al actualizar.
+- Datos de la app fuera de las copias de seguridad y de la transferencia entre móviles.
+
 ## Compilar
 
 Requisitos en este equipo (ya instalados en `C:\Android`): JDK 17 (`C:\Android\jdk17`), Android SDK (`C:\Android\sdk`: plataforma 35, build-tools 35.0.0, platform-tools) y Gradle (el *wrapper* lo descarga solo).
@@ -63,10 +79,10 @@ Un conductor dado de baja en Flota no puede entrar en la app aunque tenga usuari
 2. O con el cable USB y la depuración activada: `C:\Android\sdk\platform-tools\adb.exe install -r app-arm64-v8a-release.apk`.
 3. Al iniciar la jornada, conceda la **ubicación** («mientras se usa la app» basta: el aviso fijo mantiene el GPS en segundo plano) y las **notificaciones**. En la pestaña Jornada, «Que el ahorro de batería no corte el GPS» lleva al ajuste para excluir la app del ahorro de batería (recomendable en Samsung, Xiaomi y Huawei).
 
-El servidor del ERP tiene que ser accesible desde el móvil: en la oficina, por la IP del equipo en la red local (`http://192.168.x.x:3030`, con el puerto abierto en el cortafuegos de Windows); en carretera, por una URL pública con **HTTPS**. La app admite HTTP solo para pruebas en la red local.
+El servidor del ERP tiene que ser accesible desde el móvil **por HTTPS**, en la oficina y en carretera: la misma URL pública (`https://erp.actiontruck.net`), que Caddy publica delante del ERP dejando pasar solo la API de la app (`docs/seguridad.md` §3 del ERP). Desde la versión 1.2.0, la app de los conductores **no admite `http://`**. Solo el APK de pruebas (debug) lo admite, para probar contra un ERP local.
 
 ## Probar
 
 - Servidor: `pnpm web`. Conductores de demostración: `mrodriguez` y `aperez`, contraseña `Demo2026` (seed `0012_gps_demo.sql`). Planifique desde la web un viaje de hoy con asignación a uno de ellos para verlo en la app.
-- Emulador: `C:\Android\sdk\emulator\emulator.exe -avd conductor`; desde el emulador el ERP del equipo es `http://10.0.2.2:3030`.
+- Emulador (APK de pruebas): `C:\Android\sdk\emulator\emulator.exe -avd conductor`; desde el emulador el ERP del equipo es `http://10.0.2.2:3030`. Para probar con un móvil de verdad en la red local (también con el APK de pruebas): arranque el ERP con `ERP_WEB_HOST=0.0.0.0`, que por defecto solo escucha en `127.0.0.1`, y use `http://192.168.x.x:3030`.
 - Tests de la API que usa la app (en el repositorio del ERP): `apps/web/test/app_conductor.test.ts` y `apps/web/test/movil.test.ts`.

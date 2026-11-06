@@ -1,0 +1,143 @@
+# Comprobaciones de seguridad que tiene que pasar toda PR antes de fusionarse en main (además de «Compilar»):
+#   · Secretos (gitleaks)        claves, tokens o contraseñas subidos por error, en TODO el historial (el repo es público)
+#   · CodeQL (<lenguaje>)        análisis estático de seguridad de la app (Kotlin) y de los propios workflows
+#   · Grafo de dependencias      (solo en main) envía a GitHub las dependencias resueltas de Gradle, también las
+#                                transitivas, para que Dependabot avise de las vulnerables
+# Para que BLOQUEEN la fusión hay que marcarlas como obligatorias en GitHub (Settings › Rules): README › Seguridad.
+# Las acciones van fijadas por commit (el comentario dice su versión): Dependabot las actualiza.
+name: Seguridad
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 4 * * 1'      # cada lunes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seguridad-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secretos:
+    name: Secretos (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GITLEAKS_VERSION: 8.30.0
+      GITLEAKS_SHA256: 79a3ab579b53f71efd634f3aaf7e04a0fa0cf206b7ed434638d1547a2470a66e
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Instalar gitleaks (versión fijada y suma SHA-256 comprobada)
+        run: |
+          f="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$f" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$f"
+          echo "${GITLEAKS_SHA256}  $f" | sha256sum -c -
+          tar xzf "$f" gitleaks && rm "$f"
+
+      # Un secreto borrado en un commit posterior sigue en el historial: hay que ROTARLO (y si es la clave de firma, avisar)
+      - name: Buscar secretos en el historial
+        run: ./gitleaks git . --redact --no-banner --verbose --report-format sarif --report-path gitleaks.sarif
+
+      - name: Informe de gitleaks
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: gitleaks
+          path: gitleaks.sarif
+          retention-days: 14
+
+  codeql:
+    name: CodeQL (${{ matrix.lenguaje }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - lenguaje: java-kotlin
+            modo: manual
+          - lenguaje: actions
+            modo: none
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - if: matrix.lenguaje == 'java-kotlin'
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - if: matrix.lenguaje == 'java-kotlin'
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          languages: ${{ matrix.lenguaje }}
+          build-mode: ${{ matrix.modo }}
+          queries: security-extended
+          config-file: ./.github/codeql/codeql-config.yml
+
+      # Kotlin necesita compilar para analizarse: el mismo APK de pruebas que «Compilar»
+      - if: matrix.lenguaje == 'java-kotlin'
+        name: Compilar para el análisis
+        run: bash ./gradlew assembleDebug --no-daemon --no-build-cache --rerun-tasks
+
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          category: /language:${{ matrix.lenguaje }}
+          upload: never
+          output: sarif
+
+      # Pestaña Security › Code scanning (el repositorio es público: está disponible)
+      - name: Publicar en code scanning
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          sarif_file: sarif
+          category: /language:${{ matrix.lenguaje }}
+
+      - name: Guardar el SARIF
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: codeql-${{ matrix.lenguaje }}
+          path: sarif
+          retention-days: 14
+
+      # Falla con hallazgos de gravedad alta o crítica (security-severity >= 7); el resto queda como aviso en el resumen
+      - name: Umbral de CodeQL
+        run: python3 .github/scripts/umbral_sarif.py sarif 7.0
+
+  grafo-dependencias:
+    name: Grafo de dependencias (Gradle)
+    if: github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/dependency-submission@ed408507eac070d1f99cc633dbcf757c94c7933a # v4

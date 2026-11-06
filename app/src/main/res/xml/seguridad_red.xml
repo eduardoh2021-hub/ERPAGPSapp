@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Solo HTTPS: el usuario, la contraseña y el token del conductor nunca viajan en claro. Se confía únicamente
+     en las autoridades de certificación del sistema (no en las que instale el usuario). El APK de pruebas (debug)
+     tiene su propia versión en src/debug que sí admite http:// para probar contra un ERP local. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
