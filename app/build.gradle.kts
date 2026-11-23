@@ -159,7 +159,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-service:2.8.7")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     // Mapa de las paradas: MapLibre sobre teselas OSM, el mismo motor que la web (sin servicios de mapas de pago)
     implementation("org.maplibre.gl:android-sdk:11.5.2")
